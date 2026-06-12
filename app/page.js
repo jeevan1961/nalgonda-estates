@@ -23,22 +23,51 @@ function WhatsAppIcon({ className }) {
   );
 }
 
-function Carousel({ images, alt }) {
+const isVideoUrl = (url) => typeof url === 'string' && /\.(mp4|webm|ogg)$/i.test(url.split('?')[0]);
+
+function Carousel({ media, images, alt }) {
   const [idx, setIdx] = useState(0);
-  const imgs = images && images.length > 0 ? images : ['https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200'];
   
-  const next = (e) => { e.preventDefault(); e.stopPropagation(); setIdx((idx + 1) % imgs.length); };
-  const prev = (e) => { e.preventDefault(); e.stopPropagation(); setIdx((idx - 1 + imgs.length) % imgs.length); };
+  const source = media || images || [];
+  let items = [];
+  if (Array.isArray(source)) {
+    items = source.map(m => 
+      typeof m === 'string' 
+        ? { url: m, mediaType: isVideoUrl(m) ? 'video' : 'image' } 
+        : { ...m, mediaType: m.mediaType || (isVideoUrl(m.url) ? 'video' : 'image') }
+    );
+  }
+  
+  if (items.length === 0) {
+    items = [{ url: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200', mediaType: 'image' }];
+  }
+  
+  const next = (e) => { e.preventDefault(); e.stopPropagation(); setIdx((idx + 1) % items.length); };
+  const prev = (e) => { e.preventDefault(); e.stopPropagation(); setIdx((idx - 1 + items.length) % items.length); };
+  
+  const current = items[idx];
+  const isVideo = current?.mediaType === 'video';
   
   return (
     <div className="relative w-full h-40 sm:h-48 bg-slate-200 overflow-hidden group">
-      <img src={imgs[idx]} alt={alt} className="w-full h-full object-cover transition-opacity duration-300" loading="lazy" />
-      {imgs.length > 1 && (
+      {isVideo ? (
+        <video 
+          src={current.url} 
+          className="w-full h-full object-cover"
+          autoPlay
+          loop
+          muted
+          playsInline
+        />
+      ) : (
+        <img src={current.url} alt={alt} className="w-full h-full object-cover transition-opacity duration-300" loading="lazy" />
+      )}
+      {items.length > 1 && (
         <>
           <button aria-label="prev" onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/85 hover:bg-white rounded-full p-1 shadow opacity-0 group-hover:opacity-100 transition-opacity z-10"><ChevronLeft className="w-4 h-4 text-slate-800" /></button>
           <button aria-label="next" onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/85 hover:bg-white rounded-full p-1 shadow opacity-0 group-hover:opacity-100 transition-opacity z-10"><ChevronRight className="w-4 h-4 text-slate-800" /></button>
           <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 pointer-events-none z-10">
-            {imgs.map((_, i) => (<span key={i} className={`w-1.5 h-1.5 rounded-full ${i===idx?'bg-white':'bg-white/50'}`} />))}
+            {items.map((_, i) => (<span key={i} className={`w-1.5 h-1.5 rounded-full ${i===idx?'bg-white':'bg-white/50'}`} />))}
           </div>
         </>
       )}
@@ -49,8 +78,11 @@ function Carousel({ images, alt }) {
 function PropertyCard({ p, saved, onToggleSave }) {
   const { t, tField, lang } = useLang();
   const title = tField(p.title);
-  const desc = tField(p.description);
+  const descRaw = tField(p.description);
+  const safeDesc = typeof descRaw === 'object' ? (descRaw?.en || '') : descRaw;
+  
   const localityLabel = p.type === 'agriculture' ? tField(p, 'village') : tField(p, 'colony');
+  const locationStr = typeof p.location === 'object' ? (p.location?.en || '') : (p.location || '');
 
   const onCall = () => { window.location.href = `tel:${AGENT.phone}`; };
   
@@ -60,7 +92,7 @@ function PropertyCard({ p, saved, onToggleSave }) {
     else if (p.type === 'plot') areaText = `${p.areaSqYards || 0} sq.yd`;
     else if (p.type === 'house') areaText = `${p.plotArea || 0} sq.yd plot / ${p.builtUpArea || 0} sqft`;
 
-    return `*${title}*\n📍 Place: ${localityLabel}, ${p.location}\n📐 Area: ${areaText}\n💰 Cost: ${formatINR(p.totalPrice)}`;
+    return `*${title}*\n📍 Place: ${localityLabel}, ${locationStr}\n📐 Area: ${areaText}\n💰 Cost: ${formatINR(p.totalPrice)}`;
   };
 
   const getDynamicLink = () => typeof window !== 'undefined' ? `${window.location.origin}/property/${p.id}` : '';
@@ -137,7 +169,7 @@ function PropertyCard({ p, saved, onToggleSave }) {
     <Card className="overflow-hidden card-shadow border border-slate-200 rounded-xl bg-white flex flex-col h-full text-slate-900 shadow-lg">
       <div className="relative">
         <Link href={`/property/${p.id}`} className="block">
-          <Carousel images={p.images} alt={title} />
+          <Carousel media={p.media || p.images} alt={title} />
         </Link>
         <div className="absolute top-2 left-2 flex gap-1.5 pointer-events-none z-10">
           {p.hotDeal && <Badge className="bg-orange-500 text-white border-0 shadow text-[10px] px-1.5 py-0"><Flame className="w-2.5 h-2.5 mr-1" />{t('featured')}</Badge>}
@@ -158,7 +190,7 @@ function PropertyCard({ p, saved, onToggleSave }) {
       <div className="p-3 space-y-2 flex-1 flex flex-col bg-white">
         <Link href={`/property/${p.id}`} className="block group">
           <h3 className="font-bold text-base leading-tight line-clamp-1 text-slate-900 group-hover:text-emerald-700 transition-colors">{title}</h3>
-          <p className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" />{localityLabel}, {p.location}</p>
+          <p className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" />{localityLabel}, {locationStr}</p>
         </Link>
 
         {/* Type-specific data block */}
@@ -190,7 +222,7 @@ function PropertyCard({ p, saved, onToggleSave }) {
           )}
         </div>
 
-        {desc && <p className="text-xs text-slate-600 line-clamp-2">{desc}</p>}
+        {safeDesc && <p className="text-xs text-slate-600 line-clamp-2">{safeDesc}</p>}
 
         {/* Sticky action footer */}
         <div className="grid grid-cols-4 gap-1.5 pt-1 mt-auto bg-white">
