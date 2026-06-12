@@ -182,25 +182,51 @@ function MediaUploader({ media, onChange }) {
     if (!fileList || fileList.length === 0) return;
     setBusy(true);
     try {
-      const fd = new FormData();
-      Array.from(fileList).forEach((f) => fd.append('files', f));
+      // 1. Get the signature from the backend
+      const sigRes = await fetch('/api/upload');
+      const sigData = await sigRes.json();
 
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        headers: {},
-        body: fd,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Upload failed');
+      if (!sigRes.ok) {
+        throw new Error(sigData?.error || 'Failed to get upload signature');
+      }
 
-      const newMedia = (data.images || []).map((item) => ({
-        url: item.url,
-        publicId: item.publicId,
-        mediaType: item.mediaType || 'image',
-        mimeType: item.mimeType,
-      }));
-      onChange([...(media || []), ...newMedia]);
-      toast.success(`${newMedia.length} file(s) uploaded`);
+      const { signature, timestamp, folder, apiKey, cloudName } = sigData;
+      const newMedia = [];
+
+      // 2. Upload each file directly to Cloudinary
+      for (const file of Array.from(fileList)) {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('api_key', apiKey);
+        fd.append('timestamp', timestamp);
+        fd.append('signature', signature);
+        if (folder) fd.append('folder', folder);
+
+        const cloudinaryRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+          method: 'POST',
+          body: fd,
+        });
+
+        const uploadData = await cloudinaryRes.json();
+
+        if (!cloudinaryRes.ok) {
+          console.error('Cloudinary error:', uploadData);
+          toast.error(`Failed to upload ${file.name}`);
+          continue; // Skip failed file, but continue uploading the rest
+        }
+
+        newMedia.push({
+          url: uploadData.secure_url,
+          publicId: uploadData.public_id,
+          mediaType: uploadData.resource_type === 'video' ? 'video' : 'image',
+          mimeType: uploadData.format ? `${uploadData.resource_type}/${uploadData.format}` : file.type,
+        });
+      }
+
+      if (newMedia.length > 0) {
+        onChange([...(media || []), ...newMedia]);
+        toast.success(`${newMedia.length} file(s) uploaded successfully`);
+      }
     } catch (e) {
       console.error(e);
       toast.error(e.message || 'Upload failed');
