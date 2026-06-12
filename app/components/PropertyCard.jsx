@@ -13,7 +13,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { useLang } from '@/lib/LanguageContext';
 import { usePropertyStore, useSaved } from '@/lib/usePropertyStore';
 import { LOCATIONS, AGENT, formatINR } from '@/lib/properties';
-import { toast } from 'soner';
+import { toast } from 'sonner';
 
 function WhatsAppIcon({ className }) {
   return (
@@ -23,14 +23,18 @@ function WhatsAppIcon({ className }) {
   );
 }
 
-function Carousel({ media, alt }) {
+const isVideoUrl = (url) => typeof url === 'string' && /\.(mp4|webm|ogg)$/i.test(url.split('?')[0]);
+
+function Carousel({ media, images, alt }) {
   const [idx, setIdx] = useState(0);
   
-  // Support both new media format and legacy images format
+  const source = media || images || [];
   let items = [];
-  if (Array.isArray(media)) {
-    items = media.map(m => 
-      typeof m === 'string' ? { url: m, mediaType: 'image' } : m
+  if (Array.isArray(source)) {
+    items = source.map(m => 
+      typeof m === 'string' 
+        ? { url: m, mediaType: isVideoUrl(m) ? 'video' : 'image' } 
+        : { ...m, mediaType: m.mediaType || (isVideoUrl(m.url) ? 'video' : 'image') }
     );
   }
   
@@ -54,7 +58,6 @@ function Carousel({ media, alt }) {
           loop
           muted
           playsInline
-          controls
         />
       ) : (
         <img src={current.url} alt={alt} className="w-full h-full object-cover transition-opacity duration-300" loading="lazy" />
@@ -81,8 +84,11 @@ function Carousel({ media, alt }) {
 function PropertyCard({ p, saved, onToggleSave }) {
   const { t, tField, lang } = useLang();
   const title = tField(p.title);
-  const desc = tField(p.description);
+  const descRaw = tField(p.description);
+  const safeDesc = typeof descRaw === 'object' ? (descRaw?.en || '') : descRaw;
+  
   const localityLabel = p.type === 'agriculture' ? tField(p, 'village') : tField(p, 'colony');
+  const locationStr = typeof p.location === 'object' ? (p.location?.en || '') : (p.location || '');
 
   const onCall = () => { window.location.href = `tel:${AGENT.phone}`; };
   
@@ -92,7 +98,7 @@ function PropertyCard({ p, saved, onToggleSave }) {
     else if (p.type === 'plot') areaText = `${p.areaSqYards || 0} sq.yd`;
     else if (p.type === 'house') areaText = `${p.plotArea || 0} sq.yd plot / ${p.builtUpArea || 0} sqft`;
 
-    return `*${title}*\n📍 Place: ${localityLabel}, ${p.location}\n📐 Area: ${areaText}\n💰 Cost: ${formatINR(p.totalPrice)}`;
+    return `*${title}*\n📍 Place: ${localityLabel}, ${locationStr}\n📐 Area: ${areaText}\n💰 Cost: ${formatINR(p.totalPrice)}`;
   };
 
   const getDynamicLink = () => typeof window !== 'undefined' ? `${window.location.origin}/property/${p.id}` : '';
@@ -131,13 +137,17 @@ function PropertyCard({ p, saved, onToggleSave }) {
 
   const getPropertyImage = () => {
     if (p.images && p.images.length > 0) {
-      return p.images[0];
+      return typeof p.images[0] === 'string' ? p.images[0] : (p.images[0].url || '');
+    }
+    if (p.media && p.media.length > 0) {
+      return typeof p.media[0] === 'string' ? p.media[0] : (p.media[0].url || '');
     }
     return 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200';
   };
 
   const downloadImageAsFile = async (imageUrl) => {
     try {
+      if (!imageUrl || isVideoUrl(imageUrl)) return null;
       const response = await fetch(imageUrl);
       const blob = await response.blob();
       return new File([blob], 'property.jpg', { type: 'image/jpeg' });
@@ -155,7 +165,6 @@ function PropertyCard({ p, saved, onToggleSave }) {
     const imageUrl = getPropertyImage();
     const fullText = `${shareText}\n\n🔗 Link: ${propertyUrl}`;
 
-    // Try native share with image (Mobile and Desktop)
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         const imageFile = await downloadImageAsFile(imageUrl);
@@ -166,7 +175,6 @@ function PropertyCard({ p, saved, onToggleSave }) {
           url: propertyUrl,
         };
 
-        // Add files if available and supported
         if (imageFile && navigator.canShare && navigator.canShare({ files: [imageFile] })) {
           shareData.files = [imageFile];
         }
@@ -177,11 +185,9 @@ function PropertyCard({ p, saved, onToggleSave }) {
         if (err?.name === 'AbortError') {
           return;
         }
-        // Fall through to fallback on other errors
       }
     }
 
-    // Fallback: Copy to clipboard
     await copyToClipboard(fullText);
   };
 
@@ -191,7 +197,7 @@ function PropertyCard({ p, saved, onToggleSave }) {
         <Link href={`/property/${p.id}`} className="block">
           <Carousel media={p.media || p.images} alt={title} />
         </Link>
-        <div className="absolute top-2 left-2 flex gap-1.5 pointer-events-none">
+        <div className="absolute top-2 left-2 flex gap-1.5 pointer-events-none z-10">
           {p.hotDeal && <Badge className="bg-orange-500 text-white border-0 shadow text-[10px] px-1.5 py-0"><Flame className="w-2.5 h-2.5 mr-1" />{t('featured')}</Badge>}
           {p.sold && <Badge className="bg-red-600 text-white border-0 shadow text-[10px] px-1.5 py-0">{t('sold')}</Badge>}
         </div>
@@ -210,7 +216,7 @@ function PropertyCard({ p, saved, onToggleSave }) {
       <div className="p-3 space-y-2 flex-1 flex flex-col bg-white">
         <Link href={`/property/${p.id}`} className="block group">
           <h3 className="font-bold text-base leading-tight line-clamp-1 text-slate-900 group-hover:text-emerald-700 transition-colors">{title}</h3>
-          <p className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" />{localityLabel}, {p.location}</p>
+          <p className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" />{localityLabel}, {locationStr}</p>
         </Link>
 
         {/* Type-specific data block */}
@@ -242,7 +248,7 @@ function PropertyCard({ p, saved, onToggleSave }) {
           )}
         </div>
 
-        {desc && <p className="text-xs text-slate-600 line-clamp-2">{desc}</p>}
+        {safeDesc && <p className="text-xs text-slate-600 line-clamp-2">{safeDesc}</p>}
 
         {/* Sticky action footer */}
         <div className="grid grid-cols-4 gap-1.5 pt-1 mt-auto bg-white">
