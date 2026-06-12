@@ -8,6 +8,7 @@ const nextConfig = {
     ],
   },
 
+  // Enhanced headers for media streaming support (video files)
   async headers() {
     return [
       {
@@ -28,6 +29,11 @@ const nextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=()',
+          },
+          // Allow video streaming from Cloudinary
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'credentialless',
           },
         ],
       },

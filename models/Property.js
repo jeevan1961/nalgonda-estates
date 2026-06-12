@@ -50,7 +50,18 @@ const PropertySchema = new mongoose.Schema(
     // Common
     totalPrice: { type: Number, default: 0 },
 
-    // Images: array of Cloudinary secure_url strings (with optional public_id for deletion)
+    // Media: array of Cloudinary URLs with metadata (images + videos)
+    media: [
+      {
+        url: { type: String, required: true },
+        publicId: { type: String, default: '' },
+        mediaType: { type: String, enum: ['image', 'video'], default: 'image' },
+        mimeType: { type: String, default: '' },
+        _id: false,
+      },
+    ],
+
+    // Legacy support: flatten media to images array for backward compatibility
     images: [
       {
         url: { type: String, required: true },
@@ -70,6 +81,23 @@ const PropertySchema = new mongoose.Schema(
 // Returns a plain object shaped exactly like the existing front-end expects.
 PropertySchema.methods.toClient = function () {
   const o = this.toObject({ versionKey: false });
+  
+  // Merge media + legacy images for complete list
+  let allMedia = [];
+  
+  if (o.media && Array.isArray(o.media)) {
+    allMedia = [...o.media];
+  }
+  
+  if (o.images && Array.isArray(o.images)) {
+    allMedia.push(...o.images.map(img => ({
+      url: typeof img === 'string' ? img : img.url,
+      publicId: typeof img === 'string' ? '' : (img.publicId || ''),
+      mediaType: 'image',
+      mimeType: 'image/jpeg',
+    })));
+  }
+  
   return {
     id: o.id,
     type: o.type,
@@ -86,8 +114,9 @@ PropertySchema.methods.toClient = function () {
     builtUpArea: o.builtUpArea,
     bedrooms: o.bedrooms,
     totalPrice: o.totalPrice,
-    // Frontend uses plain string URLs — flatten the image objects
-    images: (o.images || []).map((img) => img.url),
+    // Return both media (new) and images (legacy)
+    media: allMedia,
+    images: allMedia.map(m => m.url), // flatten to strings for backward compat
     hotDeal: !!o.hotDeal,
     sold: !!o.sold,
     createdAt: o.createdAt,

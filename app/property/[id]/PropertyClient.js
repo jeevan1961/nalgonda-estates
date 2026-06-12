@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 function WhatsAppIcon({ className }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.667 5.455l-.999 3.648 3.821-1.802zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/>
+      <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 [...]
     </svg>
   );
 }
@@ -32,6 +32,32 @@ function FeatureCard({ icon, label, value }) {
       </div>
       <div className="text-lg font-bold text-slate-900 truncate" title={value}>{value}</div>
     </div>
+  );
+}
+
+// Media Renderer Component - Handles both images and videos
+function MediaRenderer({ src, alt, isVideo, className = '', onClick = null }) {
+  if (isVideo) {
+    return (
+      <video 
+        src={src} 
+        className={className}
+        onClick={onClick}
+        controls
+        autoPlay={false}
+        loop={false}
+        muted={false}
+        playsInline
+      />
+    );
+  }
+  return (
+    <img 
+      src={src} 
+      alt={alt} 
+      className={className} 
+      onClick={onClick}
+    />
   );
 }
 
@@ -60,8 +86,31 @@ export default function PropertyDetailsPage({ params }) {
   const title = tField(p.title);
   const desc = tField(p.description);
   const localityLabel = p.type === 'agriculture' ? tField(p, 'village') : tField(p, 'colony');
-  const imgs = p.images && p.images.length > 0 ? p.images : ['https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200'];
+  
+  // Support both new media format and legacy images format
+  let mediaItems = [];
+  if (p.media && Array.isArray(p.media) && p.media.length > 0) {
+    mediaItems = p.media.map(m => 
+      typeof m === 'string' 
+        ? { url: m, mediaType: 'image' } 
+        : m
+    );
+  } else if (p.images && Array.isArray(p.images) && p.images.length > 0) {
+    mediaItems = p.images.map(img => 
+      typeof img === 'string'
+        ? { url: img, mediaType: 'image' }
+        : img
+    );
+  }
+  
+  if (mediaItems.length === 0) {
+    mediaItems = [{ url: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200', mediaType: 'image' }];
+  }
+
   const isBookmarked = isSaved(p.id);
+  const currentMedia = mediaItems[idx];
+  const isCurrentVideo = currentMedia?.mediaType === 'video';
+  const currentSrc = currentMedia?.url || mediaItems[0]?.url;
 
   const getShareText = () => {
     let areaText = '';
@@ -138,9 +187,14 @@ export default function PropertyDetailsPage({ params }) {
           </Button>
         </div>
 
-        {/* Hero Image Section */}
+        {/* Hero Media Section - Supports both images and videos */}
         <div className="relative w-full h-[40vh] sm:h-[55vh] bg-black/20 group cursor-pointer" onClick={() => setIsFullScreen(true)}>
-          <img src={imgs[idx]} alt={title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+          <MediaRenderer 
+            src={currentSrc}
+            alt={title}
+            isVideo={isCurrentVideo}
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80" />
 
           {/* Badges */}
@@ -149,14 +203,18 @@ export default function PropertyDetailsPage({ params }) {
             {p.sold && <Badge className="bg-red-600 hover:bg-red-700 text-white border-0 shadow-lg text-sm px-3 py-1.5 rounded-lg">{t('sold')}</Badge>}
           </div>
 
-          <div className="absolute bottom-6 right-6 bg-black/40 hover:bg-black/60 transition-colors backdrop-blur-md text-white px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 shadow-lg border border-white/20">
-            <Maximize2 className="w-4 h-4" /> View Gallery ({idx + 1}/{imgs.length})
+          <div className="absolute bottom-6 right-6 bg-black/40 hover:bg-black/60 transition-colors backdrop-blur-md text-white px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 shadow-lg">
+            <Maximize2 className="w-4 h-4" /> {t('viewDetails')} ({idx + 1}/{mediaItems.length})
           </div>
 
-          {imgs.length > 1 && (
+          {mediaItems.length > 1 && (
             <>
-              <button onClick={(e) => { e.stopPropagation(); setIdx((idx - 1 + imgs.length) % imgs.length); }} className="absolute left-4 sm:left-10 top-1/2 -translate-y-1/2 bg-black/20 hover:bg-black/50 text-white rounded-full p-3 backdrop-blur-sm transition opacity-0 group-hover:opacity-100 shadow-lg border border-white/10"><ChevronLeft className="w-6 h-6" /></button>
-              <button onClick={(e) => { e.stopPropagation(); setIdx((idx + 1) % imgs.length); }} className="absolute right-4 sm:right-10 top-1/2 -translate-y-1/2 bg-black/20 hover:bg-black/50 text-white rounded-full p-3 backdrop-blur-sm transition opacity-0 group-hover:opacity-100 shadow-lg border border-white/10"><ChevronRight className="w-6 h-6" /></button>
+              <button onClick={(e) => { e.stopPropagation(); setIdx((idx - 1 + mediaItems.length) % mediaItems.length); }} className="absolute left-4 sm:left-10 top-1/2 -translate-y-1/2 bg-black/20 hover:bg-black/40 text-white p-2.5 rounded-full transition-all z-10 shadow-lg">
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); setIdx((idx + 1) % mediaItems.length); }} className="absolute right-4 sm:right-10 top-1/2 -translate-y-1/2 bg-black/20 hover:bg-black/40 text-white p-2.5 rounded-full transition-all z-10 shadow-lg">
+                <ChevronRight className="w-6 h-6" />
+              </button>
             </>
           )}
         </div>
@@ -209,29 +267,71 @@ export default function PropertyDetailsPage({ params }) {
             <div className="mb-10">
               <h2 className="text-xl font-bold text-slate-900 mb-4">Description</h2>
               {/* Glass description box */}
-              <div className="prose prose-slate max-w-none text-slate-800 font-medium leading-relaxed bg-white/40 backdrop-blur-lg p-6 rounded-3xl border border-white/50 whitespace-pre-wrap shadow-inner">
+              <div className="prose prose-slate max-w-none text-slate-800 font-medium leading-relaxed bg-white/40 backdrop-blur-lg p-6 rounded-3xl border border-white/50 whitespace-pre-wrap shadow-sm">
                 {desc}
+              </div>
+            </div>
+          )}
+
+          {/* Media Gallery - Show thumbnails of all media */}
+          {mediaItems.length > 1 && (
+            <div className="mb-10">
+              <h2 className="text-xl font-bold text-slate-900 mb-4">{t('mediaFile')} Gallery</h2>
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                {mediaItems.map((item, i) => {
+                  const itemIsVideo = item?.mediaType === 'video';
+                  const itemSrc = item?.url;
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setIdx(i)}
+                      className={`relative rounded-lg overflow-hidden border-2 transition-all ${
+                        i === idx 
+                          ? 'border-emerald-600 shadow-lg' 
+                          : 'border-slate-300 hover:border-emerald-400'
+                      }`}
+                    >
+                      {itemIsVideo ? (
+                        <video 
+                          src={itemSrc}
+                          className="w-full h-16 object-cover bg-black"
+                        />
+                      ) : (
+                        <img 
+                          src={itemSrc}
+                          alt={`thumbnail-${i}`}
+                          className="w-full h-16 object-cover"
+                        />
+                      )}
+                      {itemIsVideo && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                          <div className="text-white text-xl">▶</div>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
         </div>
 
         {/* Action Bar - Glassmorphism Update */}
-        <div className="fixed bottom-0 left-0 right-0 sm:relative sm:bottom-auto bg-white/80 sm:bg-transparent backdrop-blur-xl border-t border-white/30 sm:border-t-0 p-4 sm:p-6 sm:px-10 z-40 sm:rounded-b-[2rem]">
+        <div className="fixed bottom-0 left-0 right-0 sm:relative sm:bottom-auto bg-white/80 sm:bg-transparent backdrop-blur-xl border-t border-white/30 sm:border-t-0 p-4 sm:p-6 sm:px-10 z-40 sm:border-t sm:bg-white/50">
           <div className="flex gap-2 sm:gap-4 max-w-4xl mx-auto">
-            <Button onClick={onCall} className="flex-1 bg-green-600 hover:bg-green-700 text-white h-14 rounded-2xl shadow-[0_8px_16px_rgba(22,163,74,0.2)] transition-all hover:-translate-y-0.5 border border-green-500">
+            <Button onClick={onCall} className="flex-1 bg-green-600 hover:bg-green-700 text-white h-14 rounded-2xl shadow-[0_8px_16px_rgba(22,163,74,0.2)] transition-all hover:-translate-y-0.5 border-0">
               <Phone className="w-5 h-5 mr-2" />
               <span className="font-semibold text-base">{t('call')}</span>
             </Button>
-            <Button onClick={onSMS} variant="outline" className="flex-1 border-blue-200/50 text-blue-800 hover:bg-blue-50/80 h-14 rounded-2xl transition-all hover:-translate-y-0.5 bg-white/60 backdrop-blur-md shadow-sm">
+            <Button onClick={onSMS} variant="outline" className="flex-1 border-blue-200/50 text-blue-800 hover:bg-blue-50/80 h-14 rounded-2xl transition-all hover:-translate-y-0.5 bg-white/60 backdrop-blur-md">
               <MessageSquare className="w-5 h-5 mr-2" />
               <span className="font-semibold text-base hidden sm:inline">{t('sms')}</span>
             </Button>
-            <Button onClick={onWhats} variant="outline" className="flex-1 border-emerald-200/50 text-emerald-800 hover:bg-emerald-50/80 h-14 rounded-2xl transition-all hover:-translate-y-0.5 bg-white/60 backdrop-blur-md shadow-sm">
+            <Button onClick={onWhats} variant="outline" className="flex-1 border-emerald-200/50 text-emerald-800 hover:bg-emerald-50/80 h-14 rounded-2xl transition-all hover:-translate-y-0.5 bg-white/60 backdrop-blur-md">
               <WhatsAppIcon className="w-5 h-5 sm:mr-2" />
               <span className="font-semibold text-base hidden sm:inline">{t('whatsapp')}</span>
             </Button>
-            <Button onClick={onShare} variant="outline" className="flex-1 border-purple-200/50 text-purple-800 hover:bg-purple-50/80 h-14 rounded-2xl transition-all hover:-translate-y-0.5 bg-white/60 backdrop-blur-md shadow-sm">
+            <Button onClick={onShare} variant="outline" className="flex-1 border-purple-200/50 text-purple-800 hover:bg-purple-50/80 h-14 rounded-2xl transition-all hover:-translate-y-0.5 bg-white/60 backdrop-blur-md">
               <Share2 className="w-5 h-5 sm:mr-2" />
               <span className="font-semibold text-base hidden sm:inline">{t('share')}</span>
             </Button>
@@ -239,27 +339,32 @@ export default function PropertyDetailsPage({ params }) {
         </div>
       </main>
 
-      {/* Full Screen Image Viewer Modal */}
+      {/* Full Screen Media Viewer Modal - Supports images and videos */}
       {isFullScreen && (
         <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center backdrop-blur-lg" onClick={() => setIsFullScreen(false)}>
           <button onClick={() => setIsFullScreen(false)} className="absolute top-6 right-6 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-3 rounded-full transition-colors z-50">
             <X className="w-6 h-6" />
           </button>
           
-          <img 
-            src={imgs[idx]} 
-            alt="Fullscreen" 
-            className="w-full h-full object-contain cursor-default" 
-            onClick={(e) => e.stopPropagation()} 
+          <MediaRenderer 
+            src={currentSrc}
+            alt="Fullscreen"
+            isVideo={isCurrentVideo}
+            className="w-full h-full object-contain cursor-default"
+            onClick={(e) => e.stopPropagation()}
           />
           
-          {imgs.length > 1 && (
+          {mediaItems.length > 1 && (
             <>
-              <button onClick={(e) => { e.stopPropagation(); setIdx((idx - 1 + imgs.length) % imgs.length); }} className="absolute left-4 sm:left-10 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white rounded-full p-4 transition-colors backdrop-blur-md border border-white/10"><ChevronLeft className="w-8 h-8" /></button>
-              <button onClick={(e) => { e.stopPropagation(); setIdx((idx + 1) % imgs.length); }} className="absolute right-4 sm:right-10 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white rounded-full p-4 transition-colors backdrop-blur-md border border-white/10"><ChevronRight className="w-8 h-8" /></button>
+              <button onClick={(e) => { e.stopPropagation(); setIdx((idx - 1 + mediaItems.length) % mediaItems.length); }} className="absolute left-4 sm:left-10 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-colors z-20">
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); setIdx((idx + 1) % mediaItems.length); }} className="absolute right-4 sm:right-10 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full transition-colors z-20">
+                <ChevronRight className="w-6 h-6" />
+              </button>
               <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 bg-black/50 px-5 py-3 rounded-full border border-white/10 backdrop-blur-md">
-                {imgs.map((_, i) => (
-                  <button key={i} onClick={(e) => { e.stopPropagation(); setIdx(i); }} className={`h-2.5 rounded-full transition-all ${i === idx ? 'bg-white w-8' : 'bg-white/40 w-2.5 hover:bg-white/80'}`} />
+                {mediaItems.map((_, i) => (
+                  <button key={i} onClick={(e) => { e.stopPropagation(); setIdx(i); }} className={`h-2.5 rounded-full transition-all ${i === idx ? 'bg-white w-8' : 'bg-white/40 w-2.5 hover:bg-white/60'}`} />
                 ))}
               </div>
             </>

@@ -18,27 +18,59 @@ import { toast } from 'soner';
 function WhatsAppIcon({ className }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 [...]
+      <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448l-6.163 1.687zm6.495-9.61c.32-.16 1.892-.932 2.185-1.04.293-.107.506-.16.72.16.213.32.826 1.04 1.013 1.253.187.213.373.24.693.08.32-.16 1.348-.497 2.568-1.585.948-.847 1.588-1.893 1.775-2.213.187-.32.02-.493-.14-.653-.146-.146-.32-.373-.48-.56-.16-.187-.213-.32-.32-.533-.107-.213-.053-.4.027-.56.08-.16.72-1.733.986-2.373.26-.627.52-.547.72-.56.187-.013.4-.013.613-.013.213 0 .56.08.853.4.293.32 1.12 1.093 1.12 2.667s1.147 3.093 1.307 3.307c.16.213 2.253 3.44 5.453 4.813 3.2 1.373 3.2.933 3.787.88.587-.053 1.892-.773 2.16-1.52.267-.747.267-1.387.187-1.52-.08-.133-.293-.213-.613-.373z" />
     </svg>
   );
 }
 
-function Carousel({ images, alt }) {
+function Carousel({ media, alt }) {
   const [idx, setIdx] = useState(0);
-  const imgs = images && images.length > 0 ? images : ['https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200'];
   
-  const next = (e) => { e.preventDefault(); e.stopPropagation(); setIdx((idx + 1) % imgs.length); };
-  const prev = (e) => { e.preventDefault(); e.stopPropagation(); setIdx((idx - 1 + imgs.length) % imgs.length); };
+  // Support both new media format and legacy images format
+  let items = [];
+  if (Array.isArray(media)) {
+    items = media.map(m => 
+      typeof m === 'string' ? { url: m, mediaType: 'image' } : m
+    );
+  }
+  
+  if (items.length === 0) {
+    items = [{ url: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200', mediaType: 'image' }];
+  }
+  
+  const next = (e) => { e.preventDefault(); e.stopPropagation(); setIdx((idx + 1) % items.length); };
+  const prev = (e) => { e.preventDefault(); e.stopPropagation(); setIdx((idx - 1 + items.length) % items.length); };
+  
+  const current = items[idx];
+  const isVideo = current?.mediaType === 'video';
   
   return (
     <div className="relative w-full h-40 sm:h-48 bg-slate-200 overflow-hidden group">
-      <img src={imgs[idx]} alt={alt} className="w-full h-full object-cover transition-opacity duration-300" loading="lazy" />
-      {imgs.length > 1 && (
+      {isVideo ? (
+        <video 
+          src={current.url} 
+          className="w-full h-full object-cover"
+          autoPlay
+          loop
+          muted
+          playsInline
+          controls
+        />
+      ) : (
+        <img src={current.url} alt={alt} className="w-full h-full object-cover transition-opacity duration-300" loading="lazy" />
+      )}
+      {items.length > 1 && (
         <>
-          <button aria-label="prev" onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/85 hover:bg-white rounded-full p-1 shadow opacity-0 group-hover:opacity-100 transiti[...]
-          <button aria-label="next" onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/85 hover:bg-white rounded-full p-1 shadow opacity-0 group-hover:opacity-100 transit[...]
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 pointer-events-none">
-            {imgs.map((_, i) => (<span key={i} className={`w-1.5 h-1.5 rounded-full ${i===idx?'bg-white':'bg-white/50'}`} />))}
+          <button aria-label="prev" onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/85 hover:bg-white rounded-full p-1 shadow opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            <ChevronLeft className="w-4 h-4 text-slate-900" />
+          </button>
+          <button aria-label="next" onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/85 hover:bg-white rounded-full p-1 shadow opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            <ChevronRight className="w-4 h-4 text-slate-900" />
+          </button>
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 pointer-events-none z-10">
+            {items.map((_, i) => (
+              <span key={i} className={`w-1.5 h-1.5 rounded-full ${i===idx?'bg-white':'bg-white/50'}`} />
+            ))}
           </div>
         </>
       )}
@@ -157,7 +189,7 @@ function PropertyCard({ p, saved, onToggleSave }) {
     <Card className="overflow-hidden card-shadow border border-slate-200 rounded-xl bg-white flex flex-col h-full text-slate-900 shadow-lg">
       <div className="relative">
         <Link href={`/property/${p.id}`} className="block">
-          <Carousel images={p.images} alt={title} />
+          <Carousel media={p.media || p.images} alt={title} />
         </Link>
         <div className="absolute top-2 left-2 flex gap-1.5 pointer-events-none">
           {p.hotDeal && <Badge className="bg-orange-500 text-white border-0 shadow text-[10px] px-1.5 py-0"><Flame className="w-2.5 h-2.5 mr-1" />{t('featured')}</Badge>}

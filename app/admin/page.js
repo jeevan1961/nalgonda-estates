@@ -37,7 +37,7 @@ function emptyForm() {
     areaSqYards: '', pricePerSqYard: '',
     plotArea: '', builtUpArea: '', bedrooms: '',
     totalPrice: '',
-    images: [], // array of objects { url, publicId }
+    media: [], // array of objects { url, publicId, mediaType, mimeType }
     hotDeal: false,
     sold: false,
   };
@@ -55,9 +55,13 @@ function recordToForm(p) {
     areaSqYards: p.areaSqYards || '', pricePerSqYard: p.pricePerSqYard || '',
     plotArea: p.plotArea || '', builtUpArea: p.builtUpArea || '', bedrooms: p.bedrooms || '',
     totalPrice: p.totalPrice || '',
-    images: Array.isArray(p.images)
+    media: Array.isArray(p.media)
+      ? p.media.map((m) =>
+          typeof m === 'string' ? { url: m, publicId: '', mediaType: 'image', mimeType: 'image/jpeg' } : m
+        )
+      : Array.isArray(p.images)
       ? p.images.map((img) =>
-          typeof img === 'string' ? { url: img, publicId: '' } : img
+          typeof img === 'string' ? { url: img, publicId: '', mediaType: 'image', mimeType: 'image/jpeg' } : img
         )
       : [],
     hotDeal: !!p.hotDeal,
@@ -72,7 +76,7 @@ function formToRecord(f) {
     location: f.location,
     title: { en: f.titleEn, te: f.titleTe, hi: f.titleHi },
     description: { en: f.descEn, te: f.descTe, hi: f.descHi },
-    images: f.images,
+    media: f.media,
     hotDeal: !!f.hotDeal,
     sold: !!f.sold,
   };
@@ -134,7 +138,6 @@ function EnglishFieldWithAutoTranslate({
 
   return (
     <div className="space-y-2">
-      {/* Changed to flex-wrap to prevent squishing */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Label className="text-sm font-semibold text-primary">{label}</Label>
         <Button
@@ -169,8 +172,8 @@ function EnglishFieldWithAutoTranslate({
   );
 }
 
-/* ---------- Reusable: image upload + thumbnails ---------- */
-function ImageUploader({ images, onChange }) {
+/* ---------- Reusable: media upload + thumbnails (images + videos) ---------- */
+function MediaUploader({ media, onChange }) {
   const { t } = useLang();
   const fileRef = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -182,25 +185,25 @@ function ImageUploader({ images, onChange }) {
       const fd = new FormData();
       Array.from(fileList).forEach((f) => fd.append('files', f));
 
-      const headers = {};
-
       const res = await fetch('/api/upload', {
         method: 'POST',
-        headers,
+        headers: {},
         body: fd,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Upload failed');
 
-      const newOnes = (data.images || []).map((img) => ({
-        url: img.url,
-        publicId: img.publicId,
+      const newMedia = (data.images || []).map((item) => ({
+        url: item.url,
+        publicId: item.publicId,
+        mediaType: item.mediaType || 'image',
+        mimeType: item.mimeType,
       }));
-      onChange([...(images || []), ...newOnes]);
-      toast.success(`${newOnes.length} image(s) uploaded`);
+      onChange([...(media || []), ...newMedia]);
+      toast.success(`${newMedia.length} file(s) uploaded`);
     } catch (e) {
       console.error(e);
-      toast.error(e.message || 'Image upload failed');
+      toast.error(e.message || 'Upload failed');
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -208,19 +211,20 @@ function ImageUploader({ images, onChange }) {
   };
 
   const removeAt = (idx) => {
-    const next = images.filter((_, i) => i !== idx);
+    const next = media.filter((_, i) => i !== idx);
     onChange(next);
   };
 
-  const srcOf = (img) => (typeof img === 'string' ? img : img?.url);
+  const srcOf = (m) => (typeof m === 'string' ? m : m?.url);
+  const typeOf = (m) => (typeof m === 'string' ? 'image' : (m?.mediaType || 'image'));
 
   return (
     <div className="space-y-3 bg-muted/40 p-4 rounded-xl border">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <Label className="text-base font-semibold">{t('uploadImages')}</Label>
+          <Label className="text-base font-semibold">{t('uploadFile') || t('uploadImages')}</Label>
           <p className="text-[12px] text-muted-foreground mt-1">
-            Images are uploaded to Cloudinary and auto-resized to 1600px.
+            {t('imageHint') || 'Upload images and videos. Cloudinary hosting. Max 500 MB each.'}
           </p>
         </div>
         <Button
@@ -230,33 +234,44 @@ function ImageUploader({ images, onChange }) {
           className="bg-blue-600 hover:bg-blue-700 text-white"
         >
           {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-          {t('uploadImages')}
+          {t('uploadFile') || t('uploadImages')}
         </Button>
       </div>
       <input
         ref={fileRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         multiple
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
       />
 
-      {images && images.length > 0 && (
+      {media && media.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 mt-4">
-          {images.map((img, i) => (
-            <div key={i} className="relative group rounded-lg overflow-hidden border bg-white shadow-sm">
-              <img src={srcOf(img)} alt={`upload-${i}`} className="w-full h-28 object-cover" />
-              <button
-                type="button"
-                onClick={() => removeAt(i)}
-                className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1.5 opacity-90 hover:opacity-100 shadow-sm transition-transform hover:scale-110"
-                aria-label={t('removeImage')}
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
+          {media.map((item, i) => {
+            const type = typeOf(item);
+            const src = srcOf(item);
+            return (
+              <div key={i} className="relative group rounded-lg overflow-hidden border bg-white shadow-sm">
+                {type === 'video' ? (
+                  <video src={src} className="w-full h-28 object-cover bg-black" />
+                ) : (
+                  <img src={src} alt={`media-${i}`} className="w-full h-28 object-cover" />
+                )}
+                <div className="absolute top-1 right-1 bg-gray-900/80 text-white text-[10px] px-1.5 py-0.5 rounded font-semibold">
+                  {type === 'video' ? '▶ VIDEO' : '🖼 IMAGE'}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeAt(i)}
+                  className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1.5 opacity-90 hover:opacity-100 shadow-sm transition-transform hover:scale-110"
+                  aria-label={t('removeImage')}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -691,7 +706,7 @@ const handleLogin = async (e) => {
               <div className="space-y-6">
                 <h3 className="text-sm font-bold tracking-wider text-muted-foreground uppercase border-b pb-2">5. Media & Status</h3>
                 
-                <ImageUploader images={form.images} onChange={(imgs) => setForm((f) => ({ ...f, images: imgs }))} />
+                <MediaUploader media={form.media || []} onChange={(m) => setForm((f) => ({ ...f, media: m }))} />
 
                 <div className="flex flex-wrap items-center gap-8 bg-white p-5 rounded-xl border">
                   <div className="flex items-center gap-3">
