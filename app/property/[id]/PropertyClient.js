@@ -27,7 +27,6 @@ function WhatsAppIcon({ className }) {
   );
 }
 
-// Glassmorphism update to FeatureCard
 function FeatureCard({ icon, label, value }) {
   return (
     <div className="bg-white/50 backdrop-blur-md border border-white/40 rounded-2xl p-4 flex flex-col justify-center transition-colors hover:bg-white/70 hover:border-emerald-200">
@@ -48,10 +47,9 @@ function MediaRenderer({ src, alt, isVideo, className = '', onClick = null }) {
         src={src} 
         className={className}
         onClick={onClick}
-        controls
-        autoPlay={false}
-        loop={false}
-        muted={false}
+        autoPlay
+        loop
+        muted
         playsInline
       />
     );
@@ -65,6 +63,9 @@ function MediaRenderer({ src, alt, isVideo, className = '', onClick = null }) {
     />
   );
 }
+
+// Helper to determine video by extension
+const isVideoUrl = (url) => typeof url === 'string' && /\.(mp4|webm|ogg)$/i.test(url.split('?')[0]);
 
 export default function PropertyDetailsPage({ params }) {
   const { id } = params;
@@ -91,20 +92,21 @@ export default function PropertyDetailsPage({ params }) {
   const title = tField(p.title);
   const desc = tField(p.description);
   const localityLabel = p.type === 'agriculture' ? tField(p, 'village') : tField(p, 'colony');
+  const locationStr = typeof p.location === 'object' ? (p.location?.en || '') : (p.location || '');
   
   // Support both new media format and legacy images format
   let mediaItems = [];
   if (p.media && Array.isArray(p.media) && p.media.length > 0) {
     mediaItems = p.media.map(m => 
       typeof m === 'string' 
-        ? { url: m, mediaType: 'image' } 
-        : m
+        ? { url: m, mediaType: isVideoUrl(m) ? 'video' : 'image' } 
+        : { ...m, mediaType: m.mediaType || (isVideoUrl(m.url) ? 'video' : 'image') }
     );
   } else if (p.images && Array.isArray(p.images) && p.images.length > 0) {
     mediaItems = p.images.map(img => 
       typeof img === 'string'
-        ? { url: img, mediaType: 'image' }
-        : img
+        ? { url: img, mediaType: isVideoUrl(img) ? 'video' : 'image' }
+        : { ...img, mediaType: img.mediaType || (isVideoUrl(img.url) ? 'video' : 'image') }
     );
   }
   
@@ -123,7 +125,7 @@ export default function PropertyDetailsPage({ params }) {
     else if (p.type === 'plot') areaText = `${p.areaSqYards || 0} sq.yd`;
     else if (p.type === 'house') areaText = `${p.plotArea || 0} sq.yd plot / ${p.builtUpArea || 0} sqft`;
 
-    return `*${title}*\n📍 Place: ${localityLabel}, ${p.location}\n📐 Area: ${areaText}\n💰 Cost: ${formatINR(p.totalPrice)}`;
+    return `*${title}*\n📍 Place: ${localityLabel}, ${locationStr}\n📐 Area: ${areaText}\n💰 Cost: ${formatINR(p.totalPrice)}`;
   };
 
   const propertyUrl = typeof window !== 'undefined' ? window.location.href : '';
@@ -174,13 +176,10 @@ export default function PropertyDetailsPage({ params }) {
   };
 
   return (
-    // Removed solid background (bg-slate-50) from root container
     <div className="min-h-screen sm:py-8 pb-28">
       
-      {/* Main Container - Added glassmorphism classes */}
       <main className="max-w-4xl mx-auto bg-white/85 backdrop-blur-2xl sm:rounded-[2rem] sm:shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-white/20 overflow-hidden relative">
         
-        {/* Top Navigation Bar */}
         <div className="absolute top-0 left-0 right-0 p-4 z-20 flex justify-between items-center bg-gradient-to-b from-black/50 to-transparent">
           <Link href="/">
             <Button variant="ghost" size="icon" className="bg-white/20 hover:bg-white/40 text-white rounded-full backdrop-blur-md border border-white/30 transition-all shadow-md">
@@ -192,7 +191,6 @@ export default function PropertyDetailsPage({ params }) {
           </Button>
         </div>
 
-        {/* Hero Media Section - Supports both images and videos */}
         <div className="relative w-full h-[40vh] sm:h-[55vh] bg-black/20 group cursor-pointer" onClick={() => setIsFullScreen(true)}>
           <MediaRenderer 
             src={currentSrc}
@@ -202,7 +200,6 @@ export default function PropertyDetailsPage({ params }) {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80" />
 
-          {/* Badges */}
           <div className="absolute bottom-6 left-6 flex gap-2">
             {p.hotDeal && <Badge className="bg-orange-500 hover:bg-orange-600 text-white border-0 shadow-lg text-sm px-3 py-1.5 rounded-lg"><Flame className="w-4 h-4 mr-1.5" />{t('featured')}</Badge>}
             {p.sold && <Badge className="bg-red-600 hover:bg-red-700 text-white border-0 shadow-lg text-sm px-3 py-1.5 rounded-lg">{t('sold')}</Badge>}
@@ -224,7 +221,6 @@ export default function PropertyDetailsPage({ params }) {
           )}
         </div>
 
-        {/* Content Section */}
         <div className="p-6 sm:p-10">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-300/50 pb-8 mb-8">
             <div className="flex-1">
@@ -234,7 +230,7 @@ export default function PropertyDetailsPage({ params }) {
                   {p.type === 'plot' && <><LandPlot className="w-3.5 h-3.5 mr-1" />{t('plot')}</>}
                   {p.type === 'house' && <><Home className="w-3.5 h-3.5 mr-1" />{t('house')}</>}
                 </Badge>
-                <span className="text-slate-600 font-medium text-sm flex items-center"><MapPin className="w-4 h-4 mr-1 text-slate-500" /> {localityLabel}, {p.location}</span>
+                <span className="text-slate-600 font-medium text-sm flex items-center"><MapPin className="w-4 h-4 mr-1 text-slate-500" /> {localityLabel}, {locationStr}</span>
               </div>
               <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight leading-tight drop-shadow-sm">{title}</h1>
             </div>
@@ -271,14 +267,12 @@ export default function PropertyDetailsPage({ params }) {
           {desc && (
             <div className="mb-10">
               <h2 className="text-xl font-bold text-slate-900 mb-4">Description</h2>
-              {/* Glass description box */}
               <div className="prose prose-slate max-w-none text-slate-800 font-medium leading-relaxed bg-white/40 backdrop-blur-lg p-6 rounded-3xl border border-white/50 whitespace-pre-wrap shadow-sm">
                 {desc}
               </div>
             </div>
           )}
 
-          {/* Media Gallery - Show thumbnails of all media */}
           {mediaItems.length > 1 && (
             <div className="mb-10">
               <h2 className="text-xl font-bold text-slate-900 mb-4">{t('mediaFile')} Gallery</h2>
@@ -321,7 +315,6 @@ export default function PropertyDetailsPage({ params }) {
           )}
         </div>
 
-        {/* Action Bar - Glassmorphism Update */}
         <div className="fixed bottom-0 left-0 right-0 sm:relative sm:bottom-auto bg-white/80 sm:bg-transparent backdrop-blur-xl border-t border-white/30 sm:border-t-0 p-4 sm:p-6 sm:px-10 z-40 sm:border-t sm:bg-white/50">
           <div className="flex gap-2 sm:gap-4 max-w-4xl mx-auto">
             <Button onClick={onCall} className="flex-1 bg-green-600 hover:bg-green-700 text-white h-14 rounded-2xl shadow-[0_8px_16px_rgba(22,163,74,0.2)] transition-all hover:-translate-y-0.5 border-0">
@@ -344,7 +337,6 @@ export default function PropertyDetailsPage({ params }) {
         </div>
       </main>
 
-      {/* Full Screen Media Viewer Modal - Supports images and videos */}
       {isFullScreen && (
         <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center backdrop-blur-lg" onClick={() => setIsFullScreen(false)}>
           <button onClick={() => setIsFullScreen(false)} className="absolute top-6 right-6 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-3 rounded-full transition-colors z-50">
