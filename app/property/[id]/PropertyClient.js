@@ -1,20 +1,3 @@
-The issue is being caused by an incomplete line of code inside your `WhatsAppIcon` component at the very top of the file.
-
-When the code was copied or generated, the SVG path for the icon was truncated with `[...]` and, crucially, **it is missing its closing double-quote (`"`).**
-
-```jsx
-// The broken line:
-<path d="M.057 24l1.687...11.892a11.9 [...]
-
-```
-
-Because that string is never properly closed, the Next.js compiler thinks everything after it is still part of the SVG path. It keeps scanning until it finally hits the next quote it finds, which happens to be the opening quote of your `FeatureCard` div: `className="bg-white/50`.
-
-Once the compiler hits `bg-white/`, it considers the string closed. That leaves the `50` hanging out in the open as raw code, which throws the `Unexpected token numeric literal (50)` error exactly at that spot.
-
-Here is the fully corrected file. I have restored the complete, valid SVG path for the WhatsApp icon and replaced all the invisible non-breaking spaces with standard formatting so Vercel can compile it cleanly.
-
-```jsx
 'use client';
 
 import React, { useState } from 'react';
@@ -33,8 +16,13 @@ import { toast } from 'sonner';
 
 function WhatsAppIcon({ className }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.163 1.687zm6.495-9.61c.32-.16 1.892-.932 2.185-1.04.293-.107.506-.16.72.16.213.32.826 1.04 1.013 1.253.187.213.373.24.693.08.32-.16 1.348-.497 2.568-1.585.948-.847 1.588-1.893 1.775-2.213.187-.32.02-.493-.14-.653-.146-.146-.32-.373-.48-.56-.16-.187-.213-.32-.533-.107-.213-.053-.4.027-.56.08-.16.72-1.733.986-2.373.26-.627.52-.547.72-.56.187-.013.4-.013.613-.013.213 0 .56.08.853.4.293.32 1.12 1.093 1.12 2.667s1.147 3.093 1.307 3.307c.16.213 2.253 3.44 5.453 4.813 3.2 1.373 3.2.933 3.787.88.587-.053 1.892-.773 2.16-1.52.267-.747.267-1.387.187-1.52-.08-.133-.293-.213-.613-.373z" />
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M12.04 2C6.52 2 2.04 6.48 2.04 12c0 1.77.46 3.5 1.34 5.02L2 22l5.12-1.34A9.96 9.96 0 0012.04 22C17.56 22 22.04 17.52 22.04 12S17.56 2 12.04 2zm5.78 14.24c-.24.67-1.4 1.28-1.93 1.36-.5.08-1.13.12-1.83-.11-.42-.14-.96-.31-1.65-.61-2.91-1.26-4.81-4.21-4.95-4.4-.14-.19-1.18-1.57-1.18-3 0-1.43.75-2.13 1.02-2.42.27-.29.59-.36.79-.36.2 0 .4 0 .57.01.18.01.42-.07.66.51.24.58.81 2 .88 2.14.07.14.12.31.02.5-.1.19-.15.31-.3.47-.15.17-.31.37-.44.5-.15.15-.3.31-.13.61.17.29.76 1.26 1.63 2.04 1.12 1 2.06 1.31 2.35 1.46.29.15.46.13.63-.08.17-.21.73-.85.92-1.14.19-.29.39-.24.66-.14.27.1 1.69.8 1.98.95.29.14.48.21.55.33.07.12.07.7-.17 1.37z" />
     </svg>
   );
 }
@@ -391,5 +379,3 @@ export default function PropertyDetailsPage({ params }) {
     </div>
   );
 }
-
-```
