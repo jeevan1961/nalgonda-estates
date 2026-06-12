@@ -40,17 +40,18 @@ function FeatureCard({ icon, label, value }) {
 }
 
 // Media Renderer Component - Handles both images and videos
-function MediaRenderer({ src, alt, isVideo, className = '', onClick = null }) {
+function MediaRenderer({ src, alt, isVideo, className = '', onClick = null, controls = false }) {
   if (isVideo) {
     return (
       <video 
         src={src} 
         className={className}
         onClick={onClick}
-        autoPlay
-        loop
-        muted
+        autoPlay={!controls}
+        loop={!controls}
+        muted={!controls}
         playsInline
+        controls={controls}
       />
     );
   }
@@ -197,6 +198,7 @@ export default function PropertyDetailsPage({ params }) {
             alt={title}
             isVideo={isCurrentVideo}
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            controls={false}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80" />
 
@@ -349,6 +351,7 @@ export default function PropertyDetailsPage({ params }) {
             isVideo={isCurrentVideo}
             className="w-full h-full object-contain cursor-default"
             onClick={(e) => e.stopPropagation()}
+            controls={true}
           />
           
           {mediaItems.length > 1 && (
